@@ -38,7 +38,13 @@ void Example::_notification(int p_what) {
 }
 
 bool Example::_set(const StringName &p_name, const Variant &p_value) {
-	if (p_name == StringName("property_from_list")) {
+	String name = p_name;
+	if (name.begins_with("dproperty")) {
+		int index = name.get_slicec('_', 1).to_int();
+		dprop[index] = p_value;
+		return true;
+	}
+	if (name == "property_from_list") {
 		property_from_list = p_value;
 		return true;
 	}
@@ -46,7 +52,13 @@ bool Example::_set(const StringName &p_name, const Variant &p_value) {
 }
 
 bool Example::_get(const StringName &p_name, Variant &r_ret) const {
-	if (p_name == StringName("property_from_list")) {
+	String name = p_name;
+	if (name.begins_with("dproperty")) {
+		int index = name.get_slicec('_', 1).to_int();
+		r_ret = dprop[index];
+		return true;
+	}
+	if (name == "property_from_list") {
 		r_ret = property_from_list;
 		return true;
 	}
@@ -59,6 +71,9 @@ String Example::_to_string() const {
 
 void Example::_get_property_list(List<PropertyInfo> *p_list) const {
 	p_list->push_back(PropertyInfo(Variant::VECTOR3, "property_from_list"));
+	for (int i = 0; i < 3; i++) {
+		p_list->push_back(PropertyInfo(Variant::VECTOR2, "dproperty_" + itos(i)));
+	}
 }
 
 bool Example::_property_can_revert(const StringName &p_name) const {
@@ -88,6 +103,8 @@ void Example::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("extended_ref_checks"), &Example::extended_ref_checks);
 
 	ClassDB::bind_method(D_METHOD("test_array"), &Example::test_array);
+	ClassDB::bind_method(D_METHOD("test_tarray_arg", "array"), &Example::test_tarray_arg);
+	ClassDB::bind_method(D_METHOD("test_tarray"), &Example::test_tarray);
 	ClassDB::bind_method(D_METHOD("test_dictionary"), &Example::test_dictionary);
 
 	ClassDB::bind_method(D_METHOD("def_args", "a", "b"), &Example::def_args, DEFVAL(100), DEFVAL(200));
@@ -204,6 +221,22 @@ Array Example::test_array() const {
 	arr.resize(2);
 	arr[0] = Variant(1);
 	arr[1] = Variant(2);
+
+	return arr;
+}
+
+void Example::test_tarray_arg(const TypedArray<int64_t> &p_array) {
+	for (int i = 0; i < p_array.size(); i++) {
+		UtilityFunctions::print(p_array[i]);
+	}
+}
+
+TypedArray<Vector2> Example::test_tarray() const {
+	TypedArray<Vector2> arr;
+
+	arr.resize(2);
+	arr[0] = Vector2(1, 2);
+	arr[1] = Vector2(2, 3);
 
 	return arr;
 }

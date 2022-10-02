@@ -102,6 +102,10 @@ architecture_aliases = {
 }
 opts.Add(EnumVariable("arch", "CPU architecture", "", architecture_array, architecture_aliases))
 
+# Targets flags tool (optimizations, debug symbols)
+target_tool = Tool("targets", toolpath=["tools"])
+target_tool.options(opts)
+
 opts.Update(env)
 Help(opts.GenerateHelpText(env))
 
@@ -135,6 +139,7 @@ if tool is None or not tool.exists(env):
     raise ValueError("Required toolchain not found for platform " + env["platform"])
 
 tool.generate(env)
+target_tool.generate(env)
 
 # Detect and print a warning listing unknown SCons variables to ease troubleshooting.
 unknown = opts.UnknownVariables()
@@ -168,12 +173,19 @@ else:
     json_api_file = os.path.join(os.getcwd(), env["headers_dir"], "extension_api.json")
 
 bindings = env.GenerateBindings(
-    env.Dir("."), [json_api_file, os.path.join(env["headers_dir"], "godot", "gdnative_interface.h")]
+    env.Dir("."),
+    [json_api_file, os.path.join(env["headers_dir"], "godot", "gdnative_interface.h"), "binding_generator.py"],
 )
+
+scons_cache_path = os.environ.get("SCONS_CACHE")
+if scons_cache_path is not None:
+    CacheDir(scons_cache_path)
+    Decider("MD5")
 
 # Forces bindings regeneration.
 if env["generate_bindings"]:
     AlwaysBuild(bindings)
+    NoCache(bindings)
 
 # Includes
 env.Append(CPPPATH=[[env.Dir(d) for d in [env["headers_dir"], "include", os.path.join("gen", "include")]]])

@@ -63,7 +63,15 @@ void Transform3D::rotate(const Vector3 &p_axis, real_t p_phi) {
 }
 
 Transform3D Transform3D::rotated(const Vector3 &p_axis, real_t p_phi) const {
-	return Transform3D(Basis(p_axis, p_phi), Vector3()) * (*this);
+	// Equivalent to left multiplication
+	Basis p_basis(p_axis, p_phi);
+	return Transform3D(p_basis * basis, p_basis.xform(origin));
+}
+
+Transform3D Transform3D::rotated_local(const Vector3 &p_axis, real_t p_angle) const {
+	// Equivalent to right multiplication
+	Basis p_basis(p_axis, p_angle);
+	return Transform3D(basis * p_basis, origin);
 }
 
 void Transform3D::rotate_basis(const Vector3 &p_axis, real_t p_phi) {
@@ -113,15 +121,15 @@ Transform3D Transform3D::interpolate_with(const Transform3D &p_transform, real_t
 	/* not sure if very "efficient" but good enough? */
 
 	Vector3 src_scale = basis.get_scale();
-	Quaternion src_rot = basis.get_rotation_quat();
+	Quaternion src_rot = basis.get_rotation_quaternion();
 	Vector3 src_loc = origin;
 
 	Vector3 dst_scale = p_transform.basis.get_scale();
-	Quaternion dst_rot = p_transform.basis.get_rotation_quat();
+	Quaternion dst_rot = p_transform.basis.get_rotation_quaternion();
 	Vector3 dst_loc = p_transform.origin;
 
 	Transform3D interp;
-	interp.basis.set_quat_scale(src_rot.slerp(dst_rot, p_c).normalized(), src_scale.lerp(dst_scale, p_c));
+	interp.basis.set_quaternion_scale(src_rot.slerp(dst_rot, p_c).normalized(), src_scale.lerp(dst_scale, p_c));
 	interp.origin = src_loc.lerp(dst_loc, p_c);
 
 	return interp;
@@ -133,9 +141,13 @@ void Transform3D::scale(const Vector3 &p_scale) {
 }
 
 Transform3D Transform3D::scaled(const Vector3 &p_scale) const {
-	Transform3D t = *this;
-	t.scale(p_scale);
-	return t;
+	// Equivalent to left multiplication
+	return Transform3D(basis.scaled(p_scale), origin * p_scale);
+}
+
+Transform3D Transform3D::scaled_local(const Vector3 &p_scale) const {
+	// Equivalent to right multiplication
+	return Transform3D(basis.scaled_local(p_scale), origin);
 }
 
 void Transform3D::scale_basis(const Vector3 &p_scale) {
@@ -153,9 +165,13 @@ void Transform3D::translate(const Vector3 &p_translation) {
 }
 
 Transform3D Transform3D::translated(const Vector3 &p_translation) const {
-	Transform3D t = *this;
-	t.translate(p_translation);
-	return t;
+	// Equivalent to left multiplication
+	return Transform3D(basis, origin + p_translation);
+}
+
+Transform3D Transform3D::translated_local(const Vector3 &p_translation) const {
+	// Equivalent to right multiplication
+	return Transform3D(basis, origin + basis.xform(p_translation));
 }
 
 void Transform3D::orthonormalize() {

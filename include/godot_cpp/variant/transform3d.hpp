@@ -55,6 +55,7 @@ public:
 	Transform3D affine_inverse() const;
 
 	Transform3D rotated(const Vector3 &p_axis, real_t p_phi) const;
+	Transform3D rotated_local(const Vector3 &p_axis, real_t p_angle) const;
 
 	void rotate(const Vector3 &p_axis, real_t p_phi);
 	void rotate_basis(const Vector3 &p_axis, real_t p_phi);
@@ -64,10 +65,12 @@ public:
 
 	void scale(const Vector3 &p_scale);
 	Transform3D scaled(const Vector3 &p_scale) const;
+	Transform3D scaled_local(const Vector3 &p_scale) const;
 	void scale_basis(const Vector3 &p_scale);
 	void translate(real_t p_tx, real_t p_ty, real_t p_tz);
 	void translate(const Vector3 &p_translation);
 	Transform3D translated(const Vector3 &p_translation) const;
+	Transform3D translated_local(const Vector3 &p_translation) const;
 
 	const Basis &get_basis() const { return basis; }
 	void set_basis(const Basis &p_basis) { basis = p_basis; }
@@ -131,9 +134,9 @@ inline Vector3 Transform3D::xform_inv(const Vector3 &p_vector) const {
 	Vector3 v = p_vector - origin;
 
 	return Vector3(
-			(basis.elements[0][0] * v.x) + (basis.elements[1][0] * v.y) + (basis.elements[2][0] * v.z),
-			(basis.elements[0][1] * v.x) + (basis.elements[1][1] * v.y) + (basis.elements[2][1] * v.z),
-			(basis.elements[0][2] * v.x) + (basis.elements[1][2] * v.y) + (basis.elements[2][2] * v.z));
+			(basis.rows[0][0] * v.x) + (basis.rows[1][0] * v.y) + (basis.rows[2][0] * v.z),
+			(basis.rows[0][1] * v.x) + (basis.rows[1][1] * v.y) + (basis.rows[2][1] * v.z),
+			(basis.rows[0][2] * v.x) + (basis.rows[1][2] * v.y) + (basis.rows[2][2] * v.z));
 }
 
 inline Plane Transform3D::xform(const Plane &p_plane) const {

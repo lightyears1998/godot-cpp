@@ -6,14 +6,82 @@ import shutil
 from pathlib import Path
 
 
+def generate_mod_version(argcount, const=False, returns=False):
+    s = """
+#define MODBIND$VER($RETTYPE m_name$ARG) \\
+virtual $RETVAL _##m_name($FUNCARGS) $CONST override; \\
+"""
+    sproto = str(argcount)
+    method_info = ""
+    if returns:
+        sproto += "R"
+        s = s.replace("$RETTYPE", "m_ret, ")
+        s = s.replace("$RETVAL", "m_ret")
+
+    else:
+        s = s.replace("$RETTYPE", "")
+        s = s.replace("$RETVAL", "void")
+
+    if const:
+        sproto += "C"
+        s = s.replace("$CONST", "const")
+    else:
+        s = s.replace("$CONST", "")
+
+    s = s.replace("$VER", sproto)
+    argtext = ""
+    funcargs = ""
+
+    for i in range(argcount):
+        if i > 0:
+            funcargs += ", "
+
+        argtext += ", m_type" + str(i + 1)
+        funcargs += "m_type" + str(i + 1) + " arg" + str(i + 1)
+
+    if argcount:
+        s = s.replace("$ARG", argtext)
+        s = s.replace("$FUNCARGS", funcargs)
+    else:
+        s = s.replace("$ARG", "")
+        s = s.replace("$FUNCARGS", funcargs)
+
+    return s
+
+
+def generate_wrappers(target):
+    max_versions = 12
+
+    txt = """
+#ifndef GDEXTENSION_WRAPPERS_GEN_H
+#define GDEXTENSION_WRAPPERS_GEN_H
+
+"""
+
+    for i in range(max_versions + 1):
+        txt += "\n/* Module Wrapper " + str(i) + " Arguments */\n"
+        txt += generate_mod_version(i, False, False)
+        txt += generate_mod_version(i, False, True)
+        txt += generate_mod_version(i, True, False)
+        txt += generate_mod_version(i, True, True)
+
+    txt += "\n#endif\n"
+
+    with open(target, "w") as f:
+        f.write(txt)
+
+
 def get_file_list(api_filepath, output_dir, headers=False, sources=False):
     api = {}
     files = []
     with open(api_filepath) as api_file:
         api = json.load(api_file)
 
+    core_gen_folder = Path(output_dir) / "gen" / "include" / "godot_cpp" / "core"
     include_gen_folder = Path(output_dir) / "gen" / "include" / "godot_cpp"
     source_gen_folder = Path(output_dir) / "gen" / "src"
+
+    files.append(str((core_gen_folder / "ext_wrappers.gen.inc").as_posix()))
 
     for builtin_class in api["builtin_classes"]:
         if is_pod_type(builtin_class["name"]):
@@ -121,11 +189,15 @@ singletons = []
 def generate_builtin_bindings(api, output_dir, build_config):
     global builtin_classes
 
+    core_gen_folder = Path(output_dir) / "include" / "godot_cpp" / "core"
     include_gen_folder = Path(output_dir) / "include" / "godot_cpp" / "variant"
     source_gen_folder = Path(output_dir) / "src" / "variant"
 
+    core_gen_folder.mkdir(parents=True, exist_ok=True)
     include_gen_folder.mkdir(parents=True, exist_ok=True)
     source_gen_folder.mkdir(parents=True, exist_ok=True)
+
+    generate_wrappers(core_gen_folder / "ext_wrappers.gen.inc")
 
     # Store types beforehand.
     for builtin_api in api["builtin_classes"]:
@@ -217,6 +289,11 @@ def generate_builtin_bindings(api, output_dir, build_config):
             if type_name in used_classes:
                 used_classes.remove(type_name)
 
+        used_classes = list(used_classes)
+        used_classes.sort()
+        fully_used_classes = list(fully_used_classes)
+        fully_used_classes.sort()
+
         with header_filename.open("w+") as header_file:
             header_file.write(generate_builtin_class_header(builtin_api, size, used_classes, fully_used_classes))
 
@@ -271,7 +348,10 @@ def generate_builtin_class_header(builtin_api, size, used_classes, fully_used_cl
         result.append("#include <godot_cpp/variant/array_helpers.hpp>")
 
     for include in fully_used_classes:
-        result.append(f"#include <godot_cpp/{get_include_path(include)}>")
+        if include == "TypedArray":
+            result.append("#include <godot_cpp/variant/typed_array.hpp>")
+        else:
+            result.append(f"#include <godot_cpp/{get_include_path(include)}>")
 
     if len(fully_used_classes) > 0:
         result.append("")
@@ -855,7 +935,21 @@ def generate_engine_classes_bindings(api, output_dir, use_template_get_node):
                         if type_name.endswith("*"):
                             type_name = type_name[:-1]
                         if is_included(type_name, class_name):
-                            if is_enum(type_name):
+                            if type_name.startswith("typedarray::"):
+                                fully_used_classes.add("TypedArray")
+                                array_type_name = type_name.replace("typedarray::", "")
+                                if array_type_name.startswith("const "):
+                                    array_type_name = array_type_name[6:]
+                                if array_type_name.endswith("*"):
+                                    array_type_name = array_type_name[:-1]
+                                if is_included(array_type_name, class_name):
+                                    if is_enum(array_type_name):
+                                        fully_used_classes.add(get_enum_class(array_type_name))
+                                    elif "default_value" in argument:
+                                        fully_used_classes.add(array_type_name)
+                                    else:
+                                        used_classes.add(array_type_name)
+                            elif is_enum(type_name):
                                 fully_used_classes.add(get_enum_class(type_name))
                             elif "default_value" in argument:
                                 fully_used_classes.add(type_name)
@@ -870,7 +964,21 @@ def generate_engine_classes_bindings(api, output_dir, use_template_get_node):
                     if type_name.endswith("*"):
                         type_name = type_name[:-1]
                     if is_included(type_name, class_name):
-                        if is_enum(type_name):
+                        if type_name.startswith("typedarray::"):
+                            fully_used_classes.add("TypedArray")
+                            array_type_name = type_name.replace("typedarray::", "")
+                            if array_type_name.startswith("const "):
+                                array_type_name = array_type_name[6:]
+                            if array_type_name.endswith("*"):
+                                array_type_name = array_type_name[:-1]
+                            if is_included(array_type_name, class_name):
+                                if is_enum(array_type_name):
+                                    fully_used_classes.add(get_enum_class(array_type_name))
+                                elif is_variant(array_type_name):
+                                    fully_used_classes.add(array_type_name)
+                                else:
+                                    used_classes.add(array_type_name)
+                        elif is_enum(type_name):
                             fully_used_classes.add(get_enum_class(type_name))
                         elif is_variant(type_name):
                             fully_used_classes.add(type_name)
@@ -900,6 +1008,11 @@ def generate_engine_classes_bindings(api, output_dir, use_template_get_node):
         for type_name in fully_used_classes:
             if type_name in used_classes:
                 used_classes.remove(type_name)
+
+        used_classes = list(used_classes)
+        used_classes.sort()
+        fully_used_classes = list(fully_used_classes)
+        fully_used_classes.sort()
 
         with header_filename.open("w+") as header_file:
             header_file.write(
@@ -978,7 +1091,10 @@ def generate_engine_class_header(class_api, used_classes, fully_used_classes, us
     result.append("")
 
     for included in fully_used_classes:
-        result.append(f"#include <godot_cpp/{get_include_path(included)}>")
+        if included == "TypedArray":
+            result.append("#include <godot_cpp/variant/typed_array.hpp>")
+        else:
+            result.append(f"#include <godot_cpp/{get_include_path(included)}>")
 
     if len(fully_used_classes) > 0:
         result.append("")
@@ -1022,7 +1138,7 @@ def generate_engine_class_header(class_api, used_classes, fully_used_classes, us
         for value in class_api["constants"]:
             if "type" not in value:
                 value["type"] = "int"
-            result.append(f'\tconst {value["type"]} {value["name"]} = {value["value"]};')
+            result.append(f'\tstatic const {value["type"]} {value["name"]} = {value["value"]};')
         result.append("")
 
     if is_singleton:
@@ -1083,10 +1199,15 @@ def generate_engine_class_header(class_api, used_classes, fully_used_classes, us
     # Special cases.
     if class_name == "Object":
         result.append("")
+
         result.append("\ttemplate<class T>")
         result.append("\tstatic T *cast_to(Object *p_object);")
 
+        result.append("\ttemplate<class T>")
+        result.append("\tstatic const T *cast_to(const Object *p_object);")
+
         result.append("\tvirtual ~Object() = default;")
+
     elif use_template_get_node and class_name == "Node":
         result.append("\ttemplate<class T>")
         result.append(
@@ -1788,7 +1909,12 @@ def get_enum_name(enum_name: str):
 
 
 def is_variant(type_name):
-    return type_name == "Variant" or type_name in builtin_classes or type_name == "Nil"
+    return (
+        type_name == "Variant"
+        or type_name in builtin_classes
+        or type_name == "Nil"
+        or type_name.startswith("typedarray::")
+    )
 
 
 def is_engine_class(type_name):
@@ -1810,6 +1936,8 @@ def is_included(type_name, current_type):
     Check if a builtin type should be included.
     This removes Variant and POD types from inclusion, and the current type.
     """
+    if type_name.startswith("typedarray::"):
+        return True
     to_include = get_enum_class(type_name) if is_enum(type_name) else type_name
     if to_include == current_type or is_pod_type(to_include):
         return False
@@ -1835,6 +1963,12 @@ def correct_default_value(value, type_name):
     return value
 
 
+def correct_typed_array(type_name):
+    if type_name.startswith("typedarray::"):
+        return type_name.replace("typedarray::", "TypedArray<") + ">"
+    return type_name
+
+
 def correct_type(type_name, meta=None):
     type_conversion = {"float": "double", "int": "int64_t", "Nil": "Variant"}
     if meta != None:
@@ -1846,6 +1980,8 @@ def correct_type(type_name, meta=None):
             return meta
     if type_name in type_conversion:
         return type_conversion[type_name]
+    if type_name.startswith("typedarray::"):
+        return type_name.replace("typedarray::", "TypedArray<") + ">"
     if is_enum(type_name):
         if is_bitfield(type_name):
             base_class = get_enum_class(type_name)
@@ -1947,6 +2083,8 @@ def get_default_value_for_type(type_name):
         return "0.0"
     if type_name == "bool":
         return "false"
+    if type_name.startswith("typedarray::"):
+        return f"{correct_type(type_name)}()"
     if is_enum(type_name):
         return f"{correct_type(type_name)}(0)"
     if is_variant(type_name):

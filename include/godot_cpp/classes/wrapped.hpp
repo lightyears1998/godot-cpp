@@ -125,12 +125,12 @@ protected:                                                                      
 		return (bool(::godot::Wrapped::*)(const ::godot::StringName &p_name, const ::godot::Variant &p_property)) & m_class::_set;                       \
 	}                                                                                                                                                    \
                                                                                                                                                          \
-	static bool (::godot::Wrapped::*_get_get())(const ::godot::StringName &p_name, ::godot::Variant &r_ret) {                                            \
-		return (bool(::godot::Wrapped::*)(const ::godot::StringName &p_name, ::godot::Variant &r_ret)) & m_class::_set;                                  \
+	static bool (::godot::Wrapped::*_get_get())(const ::godot::StringName &p_name, ::godot::Variant &r_ret) const {                                      \
+		return (bool(::godot::Wrapped::*)(const ::godot::StringName &p_name, ::godot::Variant &r_ret) const) & m_class::_get;                            \
 	}                                                                                                                                                    \
                                                                                                                                                          \
-	static void (::godot::Wrapped::*_get_get_property_list())(::godot::List<::godot::PropertyInfo> * p_list) {                                           \
-		return (void(::godot::Wrapped::*)(::godot::List<::godot::PropertyInfo> * p_list)) & m_class::_get_property_list;                                 \
+	static void (::godot::Wrapped::*_get_get_property_list())(::godot::List<::godot::PropertyInfo> * p_list) const {                                     \
+		return (void(::godot::Wrapped::*)(::godot::List<::godot::PropertyInfo> * p_list) const) & m_class::_get_property_list;                           \
 	}                                                                                                                                                    \
                                                                                                                                                          \
 	static bool (::godot::Wrapped::*_get_property_can_revert())(const ::godot::StringName &p_name) {                                                     \
@@ -220,10 +220,10 @@ public:                                                                         
 				cls->plist_size = 0;                                                                                                                     \
 				for (const ::godot::PropertyInfo &E : list) {                                                                                            \
 					cls->plist[cls->plist_size].type = E.type;                                                                                           \
-					cls->plist[cls->plist_size].name = _alloc_and_copy_cstr(E.name);                                                                     \
+					cls->plist[cls->plist_size].name = _alloc_and_copy_cstr(E.name.utf8().get_data());                                                   \
 					cls->plist[cls->plist_size].hint = E.hint;                                                                                           \
-					cls->plist[cls->plist_size].hint_string = _alloc_and_copy_cstr(E.hint_string);                                                       \
-					cls->plist[cls->plist_size].class_name = _alloc_and_copy_cstr(E.class_name);                                                         \
+					cls->plist[cls->plist_size].hint_string = _alloc_and_copy_cstr(E.hint_string.utf8().get_data());                                     \
+					cls->plist[cls->plist_size].class_name = _alloc_and_copy_cstr(E.class_name.utf8().get_data());                                       \
 					cls->plist[cls->plist_size].usage = E.usage;                                                                                         \
 					cls->plist_size++;                                                                                                                   \
 				}                                                                                                                                        \
@@ -334,11 +334,11 @@ protected:                                                                      
 		return nullptr;                                                                                            \
 	}                                                                                                              \
                                                                                                                    \
-	static bool (Wrapped::*_get_get())(const StringName &p_name, Variant &r_ret) {                                 \
+	static bool (Wrapped::*_get_get())(const StringName &p_name, Variant &r_ret) const {                           \
 		return nullptr;                                                                                            \
 	}                                                                                                              \
                                                                                                                    \
-	static void (Wrapped::*_get_get_property_list())(List<PropertyInfo> * p_list) {                                \
+	static void (Wrapped::*_get_get_property_list())(List<PropertyInfo> * p_list) const {                          \
 		return nullptr;                                                                                            \
 	}                                                                                                              \
                                                                                                                    \
